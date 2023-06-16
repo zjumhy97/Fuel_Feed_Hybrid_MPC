@@ -1,8 +1,8 @@
 
 \documentclass[english]{cccconf}
 %\documentclass[usemulticol,english]{cccconf}
-\usepackage[comma,numbers,square,sort&compress]{natbib}
-\usepackage{epstopdf}
+\usepackage[comma,numbers,square,sort&compress,]{natbib}
+\usepackage{amsmath,amssymb,epstopdf,nicematrix}
 \begin{document}
 
 \title{Fuel Feed Control for Asymmetric Arranged Multi-tanks Aircraft: A Hybrid MPC Approach}
@@ -36,10 +36,6 @@ Foundation (NNSF) of China under Grant 00000000.}
 
 To be completed.
 
-
-
-\subsection{Figures}
-
 %\begin{figure}[!htb]
 %  \centering
 %  \includegraphics[width=\hsize]{fig1.eps}
@@ -54,12 +50,89 @@ The details of the model is refered to \cite{miao2021optimal}.
 
 \section{Problem Formulation}
 
+\begin{equation}\label{aircraft cg constraint}
+\left\{
+\begin{aligned}
+x_c(t) &= \frac{\textbf{m}(t)^T\textbf{x}_{co}(t)}{M+\textbf{1}^T\textbf{m}(t)}\\
+y_c(t) &= \frac{\textbf{m}(t)^T\textbf{y}_{co}(t)}{M+\textbf{1}^T\textbf{m}(t)}\\
+z_c(t) &= \frac{\textbf{m}(t)^T\textbf{z}_{co}(t)}{M+\textbf{1}^T\textbf{m}(t)}
+\end{aligned}
+\right.
+\end{equation}
+
+\begin{equation}
+  \mathbf{u}_{t|\tau}^T = \left[\mathbf{x}_{t|\tau}^T, \mathbf{y}_{t|\tau}^T\right]^T \in \mathbb{R}^{2n}
+  \end{equation}
+
+$\mathbf{x}_{t|\tau} = V_{x}\mathbf{u}_{t|\tau} \in \{0,1\}^{n}$ and $\mathbf{y}_{t|\tau} = V_{y}\mathbf{u}_{t|\tau}\in \mathbb{R}_{+}^{n}$,
+$[T] = {0, 1, \cdots, T}$
+
+Constraints:
+\begin{equation}\label{fuel dynamics}
+\begin{aligned}
+\textbf{m}_{0|\tau} &= \textbf{m}_{\tau}\\
+\textbf{m}_{t+1|\tau} &= A\textbf{m}_{t|\tau}+ B\textbf{u}_{t|\tau}, t \in [T]\setminus T
+\end{aligned}
+\end{equation}
+
+\begin{equation}\label{weight constraint}
+% 0\leq m_i(t) \leq a_ib_ic_i\rho,~ \forall i\in\mathcal{M},\forall t
+\mathbf{0} \leq \mathbf{m}_{t|\tau} \leq \bar{\mathbf{m}}, ~\forall t \in [T]
+\end{equation}
+
+\begin{equation}\label{feed constraint}
+  \mathbf{0} \leq \mathbf{y}_{t|\tau} \leq \min \{K\mathbf{x}_{t|\tau},\bar{\textbf{y}}\}, ~\forall t \in [T]\setminus T
+\end{equation}
+
+\begin{equation}\label{fuel consumption constraint}
+  \sum_{i\in \mathcal{M}_{m}}y_i(t) \geq h(t), ~\forall t \in [T]\setminus T
+\end{equation}
+
+\begin{equation}\label{continue constraint - original}
+  [x_i(t+1) - x_i(t)]\times\left[\sum_{j=1}^L(x_i(t+j))-L\right]\geq 0
+\end{equation}
+
+\begin{equation}\label{continue constraint}
+\begin{split}
+    -M_1\left\{1-[x_i(t+1)-x_i(t)]\right\} \leq \sum_{j=1}^L(x_i(t+j))-L \\ \leq M_1\left\{1-[x_i(t+1)-x_i(t)]\right\}
+\end{split}
+\end{equation}
+
+
+
 
 
 
 \section{Methodology}
 
 \section{Experimental Results}
+
+\begin{equation}
+\left\{
+\begin{aligned}
+m_{1,t+1|\tau} &= m_{1, t|\tau}-y_{1, t|\tau}\\
+m_{2,t+1|\tau} &= m_{2, t|\tau} - y_{2, t|\tau} +y_{1, t|\tau}\\
+m_{3,t+1|\tau} &= m_{3, t|\tau} - y_{3, t|\tau}\\
+m_{4,t+1|\tau} &= m_{4, t|\tau} - y_{4, t|\tau}\\
+m_{5,t+1|\tau} &= m_{5, t|\tau} - y_{5, t|\tau} +y_{6, t|\tau}\\
+m_{6,t+1|\tau} &= m_{6, t|\tau} -y_{6, t|\tau}
+\end{aligned}
+\right.
+\end{equation}
+
+A is an identity matrix.
+
+\begin{equation}
+B = 
+\left[\begin{array}{cccccc|cccccc}
+  & & & & & & -1 & 0 & 0 & 0 & 0 & 0 \\
+  & & & & & & 1 & -1 & 0 & 0 & 0 & 0 \\
+  & & & & & & 0 & 0 & -1 & 0 & 0 & 0 \\
+  & & & & & & 0 & 0 & 0 & -1 & 0 & 0 \\
+  \multicolumn{6}{c|}{\raisebox{2ex}[0pt]{\Huge0}} & 0 & 0 & 0 & 0 & -1 & 1 \\
+  & & & & & & 0 & 0 & 0 & 0 & 0 & -1 \\
+\end{array}\right]
+\end{equation}
 
 \begin{table}[htbp]
   \caption{Geometric Center Coordinates of Fuel Tanks}
