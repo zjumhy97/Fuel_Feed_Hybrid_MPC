@@ -2,7 +2,8 @@
 \documentclass[english]{cccconf}
 %\documentclass[usemulticol,english]{cccconf}
 \usepackage[comma,numbers,square,sort&compress,]{natbib}
-\usepackage{amsmath,amssymb,epstopdf,nicematrix}
+\usepackage{algorithm,algorithmic,amsmath,amssymb,epstopdf,nicematrix}
+
 \begin{document}
 
 \title{Fuel Feed Control for Asymmetric Arranged Multi-tanks Aircraft: A Hybrid MPC Approach}
@@ -43,12 +44,15 @@ To be completed.
 %  \label{fig1}
 %\end{figure}
 
-\section{System Model}
+\section{Related Work}
+To be completed.
+
+
+
+\section{System Model and Problem Formulation}
 The details of the model is refered to \cite{miao2021optimal}.
 
-
-
-\section{Problem Formulation}
+\subsection{System Model}
 
 \begin{equation}\label{aircraft cg constraint}
 \left\{
@@ -62,33 +66,35 @@ z_c(t) &= \frac{\textbf{m}(t)^T\textbf{z}_{co}(t)}{M+\textbf{1}^T\textbf{m}(t)}
 
 \begin{equation}
   \mathbf{u}_{t|\tau}^T = \left[\mathbf{x}_{t|\tau}^T, \mathbf{y}_{t|\tau}^T\right]^T \in \mathbb{R}^{2n}
-  \end{equation}
+\end{equation}
 
-$\mathbf{x}_{t|\tau} = V_{x}\mathbf{u}_{t|\tau} \in \{0,1\}^{n}$ and $\mathbf{y}_{t|\tau} = V_{y}\mathbf{u}_{t|\tau}\in \mathbb{R}_{+}^{n}$,
 $[T] = {0, 1, \cdots, T}$
 
 Constraints:
-\begin{equation}\label{fuel dynamics}
+\begin{equation}\label{eq:fuel_weight_dynamics}
 \begin{aligned}
 \textbf{m}_{0|\tau} &= \textbf{m}_{\tau}\\
 \textbf{m}_{t+1|\tau} &= A\textbf{m}_{t|\tau}+ B\textbf{u}_{t|\tau}, t \in [T]\setminus T
 \end{aligned}
 \end{equation}
 
-\begin{equation}\label{weight constraint}
+\begin{equation}\label{eq:weight_bound_constraint}
 % 0\leq m_i(t) \leq a_ib_ic_i\rho,~ \forall i\in\mathcal{M},\forall t
 \mathbf{0} \leq \mathbf{m}_{t|\tau} \leq \bar{\mathbf{m}}, ~\forall t \in [T]
 \end{equation}
 
-\begin{equation}\label{feed constraint}
+\begin{equation}\label{eq:feed_bound_constraint}
   \mathbf{0} \leq \mathbf{y}_{t|\tau} \leq \min \{K\mathbf{x}_{t|\tau},\bar{\textbf{y}}\}, ~\forall t \in [T]\setminus T
 \end{equation}
 
-\begin{equation}\label{fuel consumption constraint}
-  \sum_{i\in \mathcal{M}_{m}}y_i(t) \geq h(t), ~\forall t \in [T]\setminus T
+The least fuel consumption constraint:
+\begin{equation}\label{eq:least_fuel_consumption_constraint}
+%\sum_{i\in \mathcal{M}_{m}}y_i(t) \geq h(t), ~\forall t \in [T]\setminus T
+\mathbf{1}_{\mathcal{M}}^T\mathbf{y}(t)\geq h(t), ~\forall t
 \end{equation}
 
-\begin{equation}\label{continue constraint - original}
+The minimum duration constraint.
+\begin{equation}\label{minimum_duration_constraint}
   [x_i(t+1) - x_i(t)]\times\left[\sum_{j=1}^L(x_i(t+j))-L\right]\geq 0
 \end{equation}
 
@@ -99,13 +105,48 @@ Constraints:
 \end{equation}
 
 
+\subsection{Problem Formulation}
+In the time slot $\tau$, the optimization problem to be solved is 
+\begin{equation}
+\begin{aligned}
+  &\min_{\textbf{u}_{t|\tau}} \quad \lVert \textbf{c}_1(t) - \textbf{c}_2(t)\rVert_2\\
+  & \begin{array}{r@{\quad}l@{}l@{\quad}l}
+  s.t.& \textbf{m}_{0|\tau} = \textbf{m}_{\tau},\\
+  & \textbf{m}_{t+1|\tau} = A\textbf{m}_{t|\tau}+ B\textbf{u}_{t|\tau}, t \in [T]\setminus T,\\
+  & \mathbf{0} \leq \mathbf{m}_{t|\tau} \leq \bar{\mathbf{m}}, ~\forall t \in [T],\\
+  & \mathbf{0} \leq V_{y}\mathbf{u}_{t|\tau} \leq \min \{K\cdot V_{x}\mathbf{u}_{t|\tau},\bar{\textbf{y}}\}, ~\forall t \in [T]\setminus T,\\
+  & \mathbf{1}_{\mathcal{M}}^TV_{y}\mathbf{u}_{t|\tau}\geq h_{t|\tau}, ~\forall t \in [T]\setminus T,\\
+  & V_{x}\mathbf{u}_{t|\tau} \in \{0,1\}^{n},~\forall t \in [T]\setminus T,\\
+  & V_{y}\mathbf{u}_{t|\tau}\in \mathbb{R}_{+}^{n},~\forall t \in [T]\setminus T,\\
+  & \text{constraints determined by timer.}
+\end{array} .
+\end{aligned}
+\end{equation}
 
 
 
+\section{Hybrid Model Predictive Control}
 
-\section{Methodology}
+\begin{algorithm}
+\caption{Hybrid Model Predictive Control}
+\label{alg:mpc}
+\begin{algorithmic}[1]
+\STATE Initialize model parameters, prediction horizon $T$
+\STATE Initialize the timer $\mathbf{t}_{dura}$
+\STATE Initialize current state $\mathbf{m}_0$
+\WHILE{not at the end of the time horizon}
+    \STATE Measure current state $\mathbf{m}_{\tau}$
+    \STATE Compute optimal control sequence $\mathbf{u}_{t|\tau}^* = \text{HMPC}(\mathbf{m}_{\tau})$
+    \STATE Apply the first control action $\mathbf{u} = \mathbf{u}_{0|\tau}^*$
+    \STATE Update the timer $\mathbf{t}_{dura}$ 
+    \STATE Simulate system dynamics using $\mathbf{u}$ 
+    \STATE $\tau = \tau + 1$
+\ENDWHILE
+\end{algorithmic}
+\end{algorithm}
 
-\section{Experimental Results}
+
+\section{Numerical Examples}
 
 \begin{equation}
 \left\{
