@@ -20,6 +20,9 @@ class FuelFeedSystem:
 
     @cached_property
     def topology_matrix(self) -> np.ndarray:
+        """
+        Obtain the topology matrix of the fuel feed system.
+        """
         topology_matrix = np.zeros([self.num_of_tanks, self.num_of_tanks])
         for i in range(1, self.num_of_tanks + 1):
             if len(self.tanks[i].in_id) > 0:
@@ -35,6 +38,9 @@ class FuelFeedSystem:
         return topology_matrix
 
     def center_of_gravity(self) -> np.ndarray:
+        """
+        Calculate the CG of the total aircraft.
+        """
         total_mass = configs.aircraft_net_mass
         mr = 0
         for i in range(1, self.num_of_tanks+1):
@@ -45,10 +51,17 @@ class FuelFeedSystem:
 
     def step(self, fuel_feed: np.ndarray) -> None:
         """
-        Input: fuel_feed: unit: kg/s
+        Update the fuel mass of the tanks.
+        
+        Input: 
+        fuel_feed: The fuel feed vector, unit: kg/s
         """
         assert len(fuel_feed) == self.num_of_tanks
-        variation = self.topology_matrix 
+        variation = np.dot(self.topology_matrix, fuel_feed)
+        for i in range(1, self.num_of_tanks+1):
+            self.tanks[i].mass = self.tanks[i].mass + variation[i-1]
+            if self.tanks[i].mass < 0:
+                raise ValueError("The fuel feeded by tank", str(i), "exceeds its capacity.")
 
 
 
