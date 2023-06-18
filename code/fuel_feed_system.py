@@ -1,38 +1,80 @@
 import numpy as np
 import sympy as sp
+from functools import cached_property
+import json
 
-from parameters import configs
+from params import configs
 
 __all__ = ['FuelFeedSystem']
 
-
 class FuelFeedSystem:
-    def __init__(self, aircraft_mass:float, num_of_tanks:int, topology_matrix:np.ndarray) -> None:
-        self.aircraft_mass = aircraft_mass
-        self.num_of_tanks = num_of_tanks
-        self.topology_matrix = topology_matrix
-        self.mass_of_oil_in_tanks = 0
+    def __init__(self, file_name:str,) -> None:
+        self.tanks_directly_to_engine = []
+        with open(file_name, 'r') as file:
+            json_data = json.load(file)
+        self.num_of_tanks = len(json_data)
+        self.tanks = ['engine']
+        for key in json_data:
+            new_tank = OilTank(id_number=int(key),**json_data[key])
+            self.tanks.append(new_tank)
 
-    def calculate_CG_of_aircraft(self, mass_of_oil_in_tanks:np.ndarray, ) -> np.ndarray:
-        pass
+    @cached_property
+    def topology_matrix(self) -> np.ndarray:
+        topology_matrix = np.zeros([self.num_of_tanks, self.num_of_tanks])
+        for i in range(1, self.num_of_tanks + 1):
+            if len(self.tanks[i].in_id) > 0:
+                j = self.tanks[i].in_id[0]
+                topology_matrix[i-1][j-1] = 1
+            if len(self.tanks[i].out_id) > 0:
+                j = self.tanks[i].out_id[0]
+                topology_matrix[i-1][i-1] = -1
+                if j > 0:
+                    topology_matrix[j-1][i-1] = 1
+                elif j == 0:
+                    self.tanks_directly_to_engine.append(i)
+        return topology_matrix
+
+    def center_of_gravity(self) -> np.ndarray:
+        total_mass = configs.aircraft_net_mass
+        mr = 0
+        for i in range(1, self.num_of_tanks+1):
+            total_mass += self.tanks[i].mass
+            cg_of_tank = self.tanks[i].center_of_gravity()
+            mr += self.tanks[i].mass * cg_of_tank
+        return mr/total_mass
+
+    def step(self, fuel_feed: np.ndarray) -> None:
+        """
+        Input: fuel_feed: unit: kg/s
+        """
+        assert len(fuel_feed) == self.num_of_tanks
+        variation = self.topology_matrix 
+
 
 
 class OilTank:
-    def __init__(self, shape_size:np.ndarray, origin:np.ndarray) -> None:
+    def __init__(self, id_number:int, shape_size:list, origin:list, velocity_UB:float, initial_oil_volume:float, in_id:list, out_id:list) -> None:
         """
         Input:
         shape_size: three-demension vector, the size of the tank
         origin: the original point of the tank's coordinate frame w.r.t flight coordinate frame
         """
-        self.shape_size = shape_size
-        self.origin = origin
+        self.id = id_number
+        self.shape_size = np.array(shape_size)
+        self.origin = np.array(origin)
+        self.velocity_UB = velocity_UB
+        self.oil_volume = initial_oil_volume
+        self.mass = configs.oil_density * self.oil_volume
+        self.theta = 0.0
+        self.in_id = in_id
+        self.out_id = out_id
         self.a = shape_size[0]
         self.b = shape_size[1]
         self.c = shape_size[2]
         self.V = self.a * self.b * self.c
         self.M = configs.oil_density * self.V
     
-    def _calculate_CG_of_single_tank(self, mass:np.ndarray, theta:float=0.0) -> np.ndarray:
+    def center_of_gravity(self) -> np.ndarray:
         """
         Compute the center of gravity (CG) of a tank
         
@@ -43,19 +85,19 @@ class OilTank:
         Output:
         cg: the center of gravity (CG) of a tank
         """
-        sign = 0 if theta < 0 else 1
+        sign = 0 if self.theta < 0 else 1
 
         # case 1
         xA, zB = sp.symbols('xA zB')
-        eqns = [zB - 0.5 * self.c + np.tan(theta) * (0.5 * self.a * sign - xA)]
-        eqns.append((self.M - mass) / self.M - 0.5 * (0.5 * self.a - sign * xA) * (0.5 * self.c - zB) / (self.a * self.c))
+        eqns = [zB - 0.5 * self.c + np.tan(self.theta) * (0.5 * self.a * sign - xA)]
+        eqns.append((self.M - self.mass) / self.M - 0.5 * (0.5 * self.a - sign * xA) * (0.5 * self.c - zB) / (self.a * self.c))
         S = sp.solve(eqns, [xA, zB], dict=True, real=True)
         if len(S) == 1:
             # print('case 1')
             xA_val = S[0][xA]
             zB_val = S[0][zB]
             if xA_val >= -0.5 * self.a and xA_val <= 0.5 * self.a and zB_val >= -0.5 * self.c and zB_val <= 0.5 * self.c:
-                cg = -(self.M - mass) / mass * np.array([(xA_val + self.a * sign) / 3, 0, (zB_val + self.c) / 3])
+                cg = -(self.M - self.mass) / self.mass * np.array([(xA_val + self.a * sign) / 3, 0, (zB_val + self.c) / 3])
                 cg[0] = cg[0] + self.origin[0]
                 cg[1] = cg[1] + self.origin[1]
                 cg[2] = cg[2] + self.origin[2]
@@ -63,8 +105,8 @@ class OilTank:
 
         # case 2
         xB = sp.symbols('xB')
-        eqns = [np.tan(theta) * (xA - xB) + self.c]
-        eqns.append(mass / self.M - 0.5 - 0.5/self.a*(xA+xB)*sign)
+        eqns = [np.tan(self.theta) * (xA - xB) + self.c]
+        eqns.append(self.mass / self.M - 0.5 - 0.5/self.a*(xA+xB)*sign)
         S = sp.solve(eqns, [xA, xB], dict=True, real=True)
         if len(S) == 1:
             # print('case 2')
@@ -75,7 +117,7 @@ class OilTank:
                 r1 = np.array([(xB_val - xA_val)/3-0.5*self.a*sign, 0, -self.c/6])
                 r2 = np.array([(xB_val-0.5*self.a*sign)/2, 0, 0])
                 cg = 1 / (1+alpha) * r1 + alpha/(1+alpha) * r2
-                print(cg)
+                # print(cg)
                 cg[0] = cg[0] + self.origin[0]
                 cg[1] = cg[1] + self.origin[1]
                 cg[2] = cg[2] + self.origin[2]
@@ -83,8 +125,8 @@ class OilTank:
         
         # case 3
         zA = sp.symbols('zA')
-        eqns = [zA- zB- self.a*np.tan(theta)]
-        eqns.append(mass/self.M-0.5-(zA+zB)/(2*self.c))
+        eqns = [zA- zB- self.a*np.tan(self.theta)]
+        eqns.append(self.mass/self.M-0.5-(zA+zB)/(2*self.c))
         S = sp.solve(eqns, [zA, zB], dict=True, real=True)
         if len(S) == 1:
             # print('case 3')
@@ -95,15 +137,15 @@ class OilTank:
                 r1 = np.array([-0.5*self.a, 0, zA_val+zB_val-0.5*self.c])/3
                 r2 = np.array([0.5*self.a, 0, zB_val - self.c])/3
                 cg = alpha / (1+alpha) * r1 + 1/(1+alpha) * r2
-                print(cg)
+                # print(cg)
                 cg[0] = cg[0] + self.origin[0]
                 cg[1] = cg[1] + self.origin[1]
                 cg[2] = cg[2] + self.origin[2]
                 return cg
 
         # case 4
-        eqns = [np.tan(theta)*(xA+0.5*self.a*sign) - 0.5*self.c - zB]
-        eqns = [mass/self.M - 0.5 * (0.5*self.a + xA*sign) * (zB + 0.5*self.c)/(self.a * self.c)]
+        eqns = [np.tan(self.theta)*(xA+0.5*self.a*sign) - 0.5*self.c - zB]
+        eqns = [self.mass/self.M - 0.5 * (0.5*self.a + xA*sign) * (zB + 0.5*self.c)/(self.a * self.c)]
         S = sp.solve(eqns, [xA, zB], dict=True, real=True)
         if len(S) == 1:
             # print('case 4')
@@ -121,14 +163,13 @@ class OilTank:
 
 
 
-
-
 if __name__ == '__main__':
-    oil_tank_param_1 = {
-        "shape_size":np.array([1.5, 0.9, 0.3]),
-        "origin":np.array([8.91304348, 1.20652174, 0.61669004]),
-    }
-    mass_1 = 0.3 * configs.oil_density
-    oil_tank_1 = OilTank(**oil_tank_param_1)
-    res = oil_tank_1._calculate_CG_of_single_tank(mass=mass_1, theta=0.0)
-    print('res=' , res)
+    file_name = './data/oil_tank_params.json'
+    fuel_feed_system = FuelFeedSystem(file_name=file_name)
+
+    print(fuel_feed_system.topology_matrix)
+    print(fuel_feed_system.tanks_directly_to_engine)
+    print(fuel_feed_system.center_of_gravity())
+    
+    fuel_feed = np.array([1, 1,1,1,1,1])
+    fuel_feed_system.step(fuel_feed)
