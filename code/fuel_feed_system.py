@@ -15,7 +15,7 @@ class FuelFeedSystem:
         self.num_of_tanks = len(json_data)
         self.tanks = ['engine']
         for key in json_data:
-            new_tank = OilTank(id_number=int(key),**json_data[key])
+            new_tank = FuelTank(id_number=int(key),**json_data[key])
             self.tanks.append(new_tank)
 
     @cached_property
@@ -36,6 +36,13 @@ class FuelFeedSystem:
                 elif j == 0:
                     self.tanks_directly_to_engine.append(i)
         return topology_matrix
+
+    @cached_property
+    def output_fuel_mass_upper_bound(self) -> np.ndarray:
+        ub = np.zeros((self.num_of_tanks,1))
+        for i in range(self.num_of_tanks):
+            ub[i] = self.tanks[i+1].velocity_UB
+        return ub
 
     def center_of_gravity(self) -> np.ndarray:
         """
@@ -65,7 +72,7 @@ class FuelFeedSystem:
 
 
 
-class OilTank:
+class FuelTank:
     def __init__(self, id_number:int, shape_size:list, origin:list, velocity_UB:float, initial_oil_volume:float, in_id:list, out_id:list) -> None:
         """
         Input:
@@ -183,6 +190,7 @@ if __name__ == '__main__':
     print(fuel_feed_system.topology_matrix)
     print(fuel_feed_system.tanks_directly_to_engine)
     print(fuel_feed_system.center_of_gravity())
-    
-    fuel_feed = np.array([1, 1,1,1,1,1])
+    print(fuel_feed_system.output_fuel_mass_upper_bound)
+
+    fuel_feed = np.array([1, 1, 1, 1, 1, 1])
     fuel_feed_system.step(fuel_feed)
