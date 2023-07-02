@@ -1,0 +1,18 @@
+\begin{thebibliography}{1}
+
+\bibitem{kamal2012control}
+M.A.S. Kamal, Imura J., Ohata A., T.~Hayakawa, and K.~Aihara.
+\newblock Control of traffic signals in a model predictive control framework.
+\newblock {\em IFAC Proceedings Volumes}, 45(24):221--226, 2012.
+
+\bibitem{kamal2015traffic}
+M.A.S. Kamal, J.~Imura, T.~Hayakawa, A.~Ohata, and K.~Aihara.
+\newblock Traffic signal control of a road network using milp in the mpc framework.
+\newblock {\em International journal of intelligent transportation systems research}, 13:107--118, 2015.
+
+\bibitem{miao2021optimal}
+H.~Miao, Z.~Ouyang, S.~Yang, W.~Yan, M.~Cao, S.~Chen, and Z.~Yang.
+\newblock Optimal fuel feed strategy for asymmetric arranged multi-tanks aircraft.
+\newblock In {\em 2021 3rd International Conference on Industrial Artificial Intelligence (IAI)}, pages 1--6. IEEE, 2021.
+
+\end{thebibliography}
