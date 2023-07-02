@@ -1,7 +1,6 @@
-
 \documentclass[english]{cccconf}
 %\documentclass[usemulticol,english]{cccconf}
-\usepackage[comma,numbers,square,sort&compress,]{natbib}
+\usepackage[comma,numbers,square,sort&compress]{natbib}
 \usepackage{algorithm,algorithmic,amsmath,amssymb,epstopdf,nicematrix}
 
 \begin{document}
@@ -10,6 +9,7 @@
 
 \author{Haoyu Miao\aref{sustech},
         Mengfan Cao\aref{sustech},
+        Yuning Tian\aref{sustech},
         Shibo Chen\aref{sustech},
         Zaiyue Yang\aref{sustech}}
 
@@ -35,7 +35,12 @@ Foundation (NNSF) of China under Grant 00000000.}
 
 \section{Introduction}
 
-To be completed.
+This paper is organized as follows.
+Section \ref{sec:related_work} reviews the related work of this study.
+Section \ref{sec:system_and_problem} describes the system model and the problem formulation.
+Section \ref{sec:hybrid_mpc} illustrates the proposed hybrid MPC method with the timer.
+The experiment result is given in Section \ref{sec:numerical_examples}.
+Finally, Section \ref{sec:conclusion} concludes this study as the proposed method can efficiently solve the fuel feed control problem with an online manner.
 
 %\begin{figure}[!htb]
 %  \centering
@@ -44,12 +49,14 @@ To be completed.
 %  \label{fig1}
 %\end{figure}
 
-\section{Related Work}
-To be completed.
+\section{Related Work}\label{sec:related_work}
+\textit{MPC with minimum duration constarints.}
+There are some work consider the minimum duration constraint in the MPC framework. 
+Kamal et al. \cite{kamal2012control}, \cite{kamal2015traffic} considers the control of traffic signal in a MPC framework, in which the traffic signal whether red or green has a minimum duration, for example, 20 sec.
+The minimum duration is considered as the step size in the prediction horizon and decision step in the control problem.
 
 
-
-\section{System Model and Problem Formulation}
+\section{System Model and Problem Formulation}\label{sec:system_and_problem}
 The details of the model is refered to \cite{miao2021optimal}.
 
 \subsection{System Model}
@@ -109,7 +116,7 @@ The minimum duration constraint.
 In the time slot $\tau$, the optimization problem to be solved is 
 \begin{equation}
 \begin{aligned}
-  &\min_{\textbf{u}_{t|\tau}} \quad \lVert \textbf{c}_1(t) - \textbf{c}_2(t)\rVert_2\\
+  &\min_{\textbf{u}_{t|\tau}} \quad \sum_{t\in[T]} \lVert \textbf{c}_1(t) - \textbf{c}_2(t)\rVert_2^{2}\\
   & \begin{array}{r@{\quad}l@{}l@{\quad}l}
   s.t.& \textbf{m}_{0|\tau} = \textbf{m}_{\tau},\\
   & \textbf{m}_{t+1|\tau} = A\textbf{m}_{t|\tau}+ B\textbf{u}_{t|\tau}, t \in [T]\setminus T,\\
@@ -119,17 +126,28 @@ In the time slot $\tau$, the optimization problem to be solved is
   & V_{x}\mathbf{u}_{t|\tau} \in \{0,1\}^{n},~\forall t \in [T]\setminus T,\\
   & V_{y}\mathbf{u}_{t|\tau}\in \mathbb{R}_{+}^{n},~\forall t \in [T]\setminus T,\\
   & \text{constraints determined by timer.}
-\end{array} .
+\end{array}.
 \end{aligned}
 \end{equation}
 
 
 
-\section{Hybrid Model Predictive Control}
+\section{Hybrid Model Predictive Control}\label{sec:hybrid_mpc}
+
+To cope with the minimum duration constraint in model predictive control framework, we propose the MPC algorithm with timer.
+The timer records the duration of each binary input.
+If the duration of some binary input is larger than 0 but less than the minimum duration, the constraints determined by the timer will be added to the optimization problem.
+If the duration reaches to the minimum duration, then the timer will be cleared to 0.
+
+\begin{equation}\label{eq:timer_constraint}
+  \mathbf{x}_{t|\tau}(i) = 1, \forall t \in [0, min\{T, L-timer(i)\}]
+\end{equation}
+
+The details of the algorithm is shown in Algorithm \ref{alg:hmpc}.
 
 \begin{algorithm}
 \caption{Hybrid Model Predictive Control}
-\label{alg:mpc}
+\label{alg:hmpc}
 \begin{algorithmic}[1]
 \STATE Initialize model parameters, prediction horizon $T$
 \STATE Initialize the timer $\mathbf{t}_{dura}$
@@ -146,7 +164,13 @@ In the time slot $\tau$, the optimization problem to be solved is
 \end{algorithm}
 
 
-\section{Numerical Examples}
+\section{Numerical Examples}\label{sec:numerical_examples}
+In the numerical experiments, we consider the example in the Fig.\ref{Fig.fuel_tank}. 
+$\#2,\#3,\#4,\#5$ are main tanks, $\#1,\#6$ are backup tanks.
+The geometric center coordinates of the fuel tanks are given in Table \ref{tab:geometric_center}. 
+Due to the limitations of the aircraft structure, at most $2$ main tanks can feed the engine simultaneously,  and totally no more than $3$ tanks can feed simultaneously.
+The proposed method is implemented with python on a computer with Intel$^\circledR$ Core\texttrademark ~ i7-8750H CPU @2.20GHz. 
+The MIQP are solved with Gurobi 10.0.
 
 \begin{equation}
 \left\{
@@ -176,54 +200,35 @@ B =
 \end{equation}
 
 \begin{table}[htbp]
-  \caption{Geometric Center Coordinates of Fuel Tanks}
-  \begin{center}
-  \begin{tabular}{c|c|c|c}
-  \hhline
-  \textbf{Fuel}&\multicolumn{3}{|c|}{\textbf{Geometric Center Coordinates (Unit:m)}} \\
-  \cline{2-4} 
-  \textbf{Tank} & \textbf{\textit{x}}& \textbf{\textit{y}}& \textbf{\textit{z}} \\
-  \hline
-  \#1 & 8.913043& 1.20652174 & 0.61669004\\%$^{\mathrm{a}}$& &  \\
-  \#2 & 6.91304348 & -1.39347826 & 0.21669004 \\
-  \#3 & -1.68695652 & 1.20652174 & -0.28330996 \\
-  \#4 & 3.11304348 & 0.60652174 & -0.18330996\\
-  \#5 & -5.28695652 & -0.29347826 & 0.41669004\\
-  \#6 & -2.08695652 & -1.49347826 & 0.21669004\\
-  \hhline
-  %\multicolumn{4}{l}{$^{\mathrm{a}}$Sample of a Table footnote.}
-  \end{tabular}
-  \label{Table:Geometric Center}
-  \end{center}
-  \end{table}
+\label{tab:geometric_center}
+\caption{Geometric Center Coordinates of Fuel Tanks}
+\begin{center}
+\begin{tabular}{c|c|c|c}
+\hhline
+\textbf{Fuel}&\multicolumn{3}{|c|}{\textbf{Geometric Center Coordinates (Unit:m)}} \\
+\cline{2-4} 
+\textbf{Tank} & \textbf{\textit{x}}& \textbf{\textit{y}}& \textbf{\textit{z}} \\
+\hline
+\#1 & 8.913043& 1.20652174 & 0.61669004\\%$^{\mathrm{a}}$& &  \\
+\#2 & 6.91304348 & -1.39347826 & 0.21669004 \\
+\#3 & -1.68695652 & 1.20652174 & -0.28330996 \\
+\#4 & 3.11304348 & 0.60652174 & -0.18330996\\
+\#5 & -5.28695652 & -0.29347826 & 0.41669004\\
+\#6 & -2.08695652 & -1.49347826 & 0.21669004\\
+\hhline
+%\multicolumn{4}{l}{$^{\mathrm{a}}$Sample of a Table footnote.}
+\end{tabular}
+\label{Table:Geometric Center}
+\end{center}
+\end{table}
 
-\section{Conclusion}
 
+\section{Conclusion}\label{sec:conclusion}
+test
 
-\bibliographystyle{plain}
+\bibliographystyle{unsrt}
 \bibliography{references}
 
-
-% \begin{thebibliography}{0}
-% \bibitem{cheng2005}
-% D.~Cheng, Controllability of switched bilinear systems, \emph{IEEE Trans. on
-%   Automatic Control}, 50(4): 511--515, 2005.
-
-% \bibitem{poor1985}
-% H.~Poor, \emph{An Introduction to Signal Detection and Estimation}. New York: Springer-Verlag, 1985, chapter 4.
-
-% \bibitem{smith}
-% B.~Smith, An approach to graphs of linear forms, accepted.
-
-% \bibitem{cheng2005a}
-% D.~Cheng, On logic-based intelligent systems, in \emph{Proceedings of 5th
-%   International Conference on Control and Automation}, 2005: 71--75.
-
-% \bibitem{cheng2005b}
-% D.~Cheng, R.~Ortega, and E.~Panteley, On port controlled hamiltonian systems,
-%   in \emph{Advanced Robust and Adaptive Control --- Theory and Applications},
-%   D.~Cheng, Y.~Sun, T.~Shen, and H.~Ohmori, Eds. Beijing: Tsinghua University Press, 2005: 3--16.
-% \end{thebibliography}
 
 \end{document}
 

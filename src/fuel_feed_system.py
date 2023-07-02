@@ -1,17 +1,18 @@
 import numpy as np
 import sympy as sp
 from functools import cached_property
+import multiprocessing
+from multiprocessing.dummy import Pool as ThreadPool
 import json
+import time
 
 from params import configs
 
 __all__ = ['FuelFeedSystem']
 
 class FuelFeedSystem:
-    def __init__(self, file_name:str,) -> None:
+    def __init__(self, json_data) -> None:
         self.tanks_directly_to_engine = []
-        with open(file_name, 'r') as file:
-            json_data = json.load(file)
         self.num_of_tanks = len(json_data)
         self.tanks = ['engine']
         for key in json_data:
@@ -38,11 +39,27 @@ class FuelFeedSystem:
         return topology_matrix
 
     @cached_property
-    def output_fuel_mass_upper_bound(self) -> np.ndarray:
-        ub = np.zeros((self.num_of_tanks,1))
+    def fuel_feed_velocity_upper_bound(self) -> np.ndarray:
+        ub = np.zeros(self.num_of_tanks)
         for i in range(self.num_of_tanks):
             ub[i] = self.tanks[i+1].velocity_UB
         return ub
+
+    @cached_property
+    def fuel_mass_upper_bound(self) -> np.ndarray:
+        ub = np.zeros(self.num_of_tanks)
+        for i in range(self.num_of_tanks):
+            ub[i] = self.tanks[i+1].M
+        return ub
+
+    def fuel_mass(self) -> np.ndarray:
+        mass = np.zeros(self.num_of_tanks)
+        for i in range(self.num_of_tanks):
+            mass[i] = self.tanks[i+1].mass
+        return mass
+
+    def total_fuel_mass(self) -> float:
+        return sum(self.fuel_mass())
 
     def center_of_gravity(self) -> np.ndarray:
         """
@@ -68,8 +85,24 @@ class FuelFeedSystem:
         for i in range(1, self.num_of_tanks+1):
             self.tanks[i].mass = self.tanks[i].mass + variation[i-1]
             if self.tanks[i].mass < 0:
-                raise ValueError("The fuel feeded by tank", str(i), "exceeds its capacity.")
+                self.tanks[i].mass = 0
+                self.tanks[i].state = 0 # empty
+                # raise ValueError("The fuel feeded by tank", str(i), "exceeds its capacity.")
+    
+    def center_of_gravity_of_tanks(self) -> np.ndarray:
+        def process(i):
+            cg_of_tanks.append(list(np.array(self.tanks[i].center_of_gravity())))
 
+        # time_start = time.time()
+        tanks_id = range(1, self.num_of_tanks + 1)
+        cg_of_tanks = []
+        pool = ThreadPool()
+        pool.map(process, tanks_id)
+        pool.close()
+        pool.join()
+        # time_end = time.time()
+        # print("~~~ computing cg:", time_end - time_start)
+        return np.array(cg_of_tanks)
 
 
 class FuelTank:
@@ -85,6 +118,7 @@ class FuelTank:
         self.velocity_UB = velocity_UB
         self.oil_volume = initial_oil_volume
         self.mass = configs.oil_density * self.oil_volume
+        self.state = 1 if self.mass > 0 else 0
         self.theta = 0.0
         self.in_id = in_id
         self.out_id = out_id
@@ -99,7 +133,7 @@ class FuelTank:
         Compute the center of gravity (CG) of a tank
         
         Input:
-        mass: the mass of oil in the tank
+        mass: the mass of fuel in the tank
         theta: the pitch angle of the flight
 
         Output:
@@ -121,6 +155,8 @@ class FuelTank:
                 cg[0] = cg[0] + self.origin[0]
                 cg[1] = cg[1] + self.origin[1]
                 cg[2] = cg[2] + self.origin[2]
+                if type(cg[0]) == sp.core.numbers.NaN:
+                    print(1)
                 return cg
 
         # case 2
@@ -141,6 +177,8 @@ class FuelTank:
                 cg[0] = cg[0] + self.origin[0]
                 cg[1] = cg[1] + self.origin[1]
                 cg[2] = cg[2] + self.origin[2]
+                if type(cg[0]) == sp.core.numbers.NaN:
+                    print(1)
                 return cg
         
         # case 3
@@ -154,6 +192,8 @@ class FuelTank:
             zB_val = S[0][zB]
             if zA_val >= -0.5 * self.c and zA_val <= 0.5 * self.c and zB_val >= -0.5 * self.c and zB_val <= 0.5 * self.c:
                 alpha = (zA_val + 0.5 * self.c) / (zB_val + 0.5 * self.c)
+                if zA_val + 0.5 * self.c==0 and zB_val + 0.5 * self.c == 0:
+                    alpha = 1
                 r1 = np.array([-0.5*self.a, 0, zA_val+zB_val-0.5*self.c])/3
                 r2 = np.array([0.5*self.a, 0, zB_val - self.c])/3
                 cg = alpha / (1+alpha) * r1 + 1/(1+alpha) * r2
@@ -161,6 +201,8 @@ class FuelTank:
                 cg[0] = cg[0] + self.origin[0]
                 cg[1] = cg[1] + self.origin[1]
                 cg[2] = cg[2] + self.origin[2]
+                if type(cg[0]) == sp.core.numbers.NaN:
+                    print(1)
                 return cg
 
         # case 4
@@ -177,20 +219,26 @@ class FuelTank:
                 cg[0] = cg[0] + self.origin[0]
                 cg[1] = cg[1] + self.origin[1]
                 cg[2] = cg[2] + self.origin[2]
+                if type(cg[0]) == sp.core.numbers.NaN:
+                    print(1)
                 return cg
 
         raise ValueError("No solution found when compute CG!")
 
 
-
 if __name__ == '__main__':
-    file_name = './data/oil_tank_params.json'
-    fuel_feed_system = FuelFeedSystem(file_name=file_name)
+    file_name = './data/fuel_tank_params.json'
+    with open(file_name, 'r') as file:
+        json_data = json.load(file)
+    fuel_feed_system = FuelFeedSystem(json_data=json_data)
 
     print(fuel_feed_system.topology_matrix)
     print(fuel_feed_system.tanks_directly_to_engine)
     print(fuel_feed_system.center_of_gravity())
-    print(fuel_feed_system.output_fuel_mass_upper_bound)
+    print(fuel_feed_system.fuel_feed_velocity_upper_bound)
+    print(fuel_feed_system.fuel_mass())
+    print(fuel_feed_system.total_fuel_mass())
+    print(fuel_feed_system.fuel_mass_upper_bound)
 
     fuel_feed = np.array([1, 1, 1, 1, 1, 1])
     fuel_feed_system.step(fuel_feed)
